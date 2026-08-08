@@ -44,7 +44,7 @@ app.use(compression());
 app.use(morgan(ENV === 'production' ? 'combined' : 'dev'));
 
 // CORS — allow origins from env or default to Vercel production + local dev ports
-const allowedOrigins = (process.env.CORS_ORIGINS || 'https://fisheries-intelligent-hub.vercel.app,http://localhost:5173,http://127.0.0.1:5173,http://localhost:5174')
+const allowedOrigins = (process.env.CORS_ORIGINS || 'https://fishintelli-hub.vercel.app,https://fisheries-intelligent-hub.vercel.app,http://localhost:5173,http://127.0.0.1:5173,http://localhost:5174')
   .split(',')
   .map(s => s.trim());
 
