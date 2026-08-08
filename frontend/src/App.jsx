@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { 
-  FileText, CheckCircle2, AlertTriangle, TrendingUp, Anchor, User, 
-  Thermometer, Activity, DollarSign, Search, ArrowUpRight, Check, X, 
-  ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, RefreshCw, 
+import {
+  FileText, CheckCircle2, AlertTriangle, TrendingUp, Anchor, User,
+  Thermometer, Activity, DollarSign, Search, ArrowUpRight, Check, X,
+  ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, RefreshCw,
   Sun, Moon, UploadCloud, BarChart3, HelpCircle, HardDrive, ShieldCheck, LogOut
 } from 'lucide-react';
 import AnalyticsDashboard from './components/AnalyticsDashboard';
@@ -59,8 +59,12 @@ const SIMULATED_UPLOADS = [
   { id: 'temp-sales-002', name: 'Sales Invoice - INV-9089 (Missing Health Cert)', type: DOCUMENT_TYPES.SALES }
 ];
 
-const RAW_API_URL = import.meta.env.VITE_API_BASE_URL || 'https://fisheries-intelligent-hub-1.onrender.com/api';
-const API_BASE_URL = RAW_API_URL.replace(/\/+$/, '');
+let RAW_API_URL = import.meta.env.VITE_API_BASE_URL || 'https://fishintelli-hub.onrender.com/api';
+RAW_API_URL = RAW_API_URL.replace(/\/+$/, '');
+if (!RAW_API_URL.endsWith('/api')) {
+  RAW_API_URL += '/api';
+}
+const API_BASE_URL = RAW_API_URL;
 
 export default function App() {
   // Auth state
@@ -93,7 +97,7 @@ export default function App() {
   const [reviewerNotes, setReviewerNotes] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
-  
+
   // Connectivity & Loading state
   const [isLoadingData, setIsLoadingData] = useState(true);
   const [apiError, setApiError] = useState(null);
@@ -228,7 +232,7 @@ export default function App() {
       const analyticsRes = await axios.get(`${API_BASE_URL}/analytics`);
       setDocuments(docsRes.data);
       setAnalytics(analyticsRes.data);
-      
+
       const updated = docsRes.data.find(d => d.id === selectedDoc.id);
       setSelectedDoc(updated || null);
     } catch (err) {
@@ -284,11 +288,11 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-[#09090b] text-zinc-950 dark:text-zinc-50 flex flex-col font-sans transition-colors duration-300">
-      
+
       {/* Top Header */}
       <header className="border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-[#0c0c0f] sticky top-0 z-30 transition-colors">
         <div className="max-w-[1600px] mx-auto p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-          
+
           {/* Logo & Title */}
           <div className="flex items-center gap-3">
             <div className="h-10 w-10 rounded-lg bg-blue-600 flex items-center justify-center text-white font-bold text-lg shadow-md shadow-blue-500/20">
@@ -302,7 +306,7 @@ export default function App() {
 
           {/* User Role & Navigation */}
           <div className="flex flex-wrap items-center gap-3">
-            
+
             {/* Active User Role selector */}
             <div className="flex items-center gap-3 bg-zinc-100 dark:bg-zinc-900 px-3 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-800">
               <User size={14} className="text-zinc-500" />
@@ -310,8 +314,8 @@ export default function App() {
                 <span className="text-[10px] uppercase font-bold text-zinc-500 dark:text-zinc-400 tracking-wider leading-tight">
                   {authUser?.username}
                 </span>
-                <select 
-                  value={activeRole} 
+                <select
+                  value={activeRole}
                   onChange={(e) => {
                     setActiveRole(e.target.value);
                     setCurrentPage(1); // Reset page on role switch
@@ -323,7 +327,7 @@ export default function App() {
                   ))}
                 </select>
               </div>
-              <button 
+              <button
                 onClick={handleLogout}
                 className="ml-2 p-1.5 hover:bg-zinc-200 dark:hover:bg-zinc-800 rounded-md transition-colors text-zinc-500 hover:text-red-500"
                 title="Logout"
@@ -333,8 +337,8 @@ export default function App() {
             </div>
 
             {/* Dark Mode toggle */}
-            <button 
-              onClick={() => setIsDarkMode(!isDarkMode)} 
+            <button
+              onClick={() => setIsDarkMode(!isDarkMode)}
               className="p-2 border border-zinc-200 dark:border-zinc-700 rounded-md bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors"
               aria-label="Toggle Dark Mode"
             >
@@ -342,7 +346,7 @@ export default function App() {
             </button>
 
             {/* Reset database button */}
-            <button 
+            <button
               onClick={handleReset}
               disabled={isResetting}
               className="flex items-center gap-1.5 px-3 py-1.5 border border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-300 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-800 text-sm font-medium transition-all duration-200 disabled:opacity-50"
@@ -369,10 +373,10 @@ export default function App() {
 
       {/* Main Workspace Body */}
       <main className="flex-1 max-w-[1600px] mx-auto w-full p-6 space-y-6">
-        
+
         {/* KPI Cards Row */}
         <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          
+
           {/* Card 1: Total Documents */}
           <div className="bg-white dark:bg-[#0c0c0f] border border-zinc-200 dark:border-zinc-800 rounded-xl p-5 flex items-center justify-between shadow-sm transition-all duration-300">
             <div>
@@ -429,14 +433,14 @@ export default function App() {
 
         {/* Tab Selection */}
         <section className="flex border-b border-zinc-200 dark:border-zinc-800">
-          <button 
+          <button
             onClick={() => setActiveTab('intake')}
             className={`px-5 py-2.5 font-medium text-sm border-b-2 transition-all flex items-center gap-2 ${activeTab === 'intake' ? 'border-blue-600 text-blue-600 dark:text-blue-400' : 'border-transparent text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200'}`}
           >
             <HardDrive size={16} />
             Intake Operations
           </button>
-          <button 
+          <button
             onClick={() => setActiveTab('analytics')}
             className={`px-5 py-2.5 font-medium text-sm border-b-2 transition-all flex items-center gap-2 ${activeTab === 'analytics' ? 'border-blue-600 text-blue-600 dark:text-blue-400' : 'border-transparent text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200'}`}
           >
@@ -452,8 +456,8 @@ export default function App() {
               <AlertTriangle className="h-5 w-5 text-amber-500 shrink-0" />
               <span>{apiError}</span>
             </div>
-            <button 
-              onClick={() => fetchData(true)} 
+            <button
+              onClick={() => fetchData(true)}
               disabled={isLoadingData}
               className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-semibold rounded-md transition-colors shrink-0"
             >
@@ -465,22 +469,22 @@ export default function App() {
         {/* Tab 1: Intake Operations View */}
         {activeTab === 'intake' && (
           <div className="flex flex-col lg:flex-row gap-6 relative items-start">
-            
+
             {/* Left Column: Intake Queue Table */}
             <div className={`transition-all duration-300 w-full ${selectedDoc ? 'lg:w-2/3' : 'w-full'}`}>
-              
+
               {/* Queue Toolbar */}
               <div className="bg-white dark:bg-[#0c0c0f] border border-zinc-200 dark:border-zinc-800 rounded-xl p-4 mb-4 shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                
+
                 {/* Search & Filters */}
                 <div className="flex flex-wrap items-center gap-3 flex-1">
-                  
+
                   {/* Search bar */}
                   <div className="relative w-full max-w-xs">
                     <Search className="absolute left-3 top-2.5 h-4 w-4 text-zinc-400" />
-                    <input 
-                      type="text" 
-                      placeholder="Search files, facilities, IDs..." 
+                    <input
+                      type="text"
+                      placeholder="Search files, facilities, IDs..."
                       value={searchQuery}
                       onChange={(e) => {
                         setSearchQuery(e.target.value);
@@ -491,8 +495,8 @@ export default function App() {
                   </div>
 
                   {/* Filter by Category */}
-                  <select 
-                    value={filterType} 
+                  <select
+                    value={filterType}
                     onChange={(e) => {
                       setFilterType(e.target.value);
                       setCurrentPage(1);
@@ -506,8 +510,8 @@ export default function App() {
                   </select>
 
                   {/* Filter by Status */}
-                  <select 
-                    value={filterStatus} 
+                  <select
+                    value={filterStatus}
                     onChange={(e) => {
                       setFilterStatus(e.target.value);
                       setCurrentPage(1);
@@ -524,7 +528,7 @@ export default function App() {
                 </div>
 
                 {/* Simulated Ingest Button */}
-                <button 
+                <button
                   onClick={() => setShowUploadModal(true)}
                   className="flex items-center gap-1.5 bg-[#059669] hover:bg-[#047857] text-white rounded-lg px-4 py-2 text-sm font-semibold transition-colors shadow-sm self-start md:self-auto"
                 >
@@ -536,7 +540,7 @@ export default function App() {
 
               {/* Table Container */}
               <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-[12px] overflow-hidden shadow-sm">
-                
+
                 {/* Live Analyzer Row (Transient State Animation) */}
                 {isAnalyzing && (
                   <div className="bg-blue-500/10 border-b border-blue-200 dark:border-blue-800/30 px-6 py-4 flex items-center justify-between animate-pulse">
@@ -565,7 +569,7 @@ export default function App() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
-                      
+
                       {isLoadingData ? (
                         <tr>
                           <td colSpan="5" className="py-12 text-center text-zinc-500 dark:text-zinc-400">
@@ -585,7 +589,7 @@ export default function App() {
                         paginatedDocs.map((doc) => {
                           const isSelected = selectedDoc && selectedDoc.id === doc.id;
                           return (
-                            <tr 
+                            <tr
                               key={doc.id}
                               onClick={() => {
                                 setSelectedDoc(doc);
@@ -621,8 +625,8 @@ export default function App() {
                                   <span className="text-xs font-mono font-semibold">{doc.extractionConfidence}%</span>
                                   {/* Progress bar sparkline */}
                                   <div className="w-20 bg-zinc-200 dark:bg-zinc-700 h-1.5 rounded-full mt-1.5 overflow-hidden">
-                                    <div 
-                                      className={`h-full rounded-full ${doc.extractionConfidence > 92 ? 'bg-emerald-500' : doc.extractionConfidence > 85 ? 'bg-orange-400' : 'bg-rose-500'}`} 
+                                    <div
+                                      className={`h-full rounded-full ${doc.extractionConfidence > 92 ? 'bg-emerald-500' : doc.extractionConfidence > 85 ? 'bg-orange-400' : 'bg-rose-500'}`}
                                       style={{ width: `${doc.extractionConfidence}%` }}
                                     ></div>
                                   </div>
@@ -631,13 +635,12 @@ export default function App() {
 
                               {/* Status badge */}
                               <td className="py-4 px-6 text-center">
-                                <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold border ${
-                                  doc.status === 'Approved' || doc.status === 'Auto-Approved'
-                                    ? 'bg-emerald-100/60 dark:bg-emerald-950/20 text-emerald-800 dark:text-emerald-400 border-emerald-200 dark:border-emerald-900/30'
-                                    : doc.status === 'Flagged'
-                                      ? 'bg-amber-100/60 dark:bg-amber-950/20 text-amber-800 dark:text-amber-400 border-amber-200 dark:border-amber-900/30'
-                                      : 'bg-rose-100/60 dark:bg-rose-950/20 text-rose-800 dark:text-rose-400 border-rose-200 dark:border-rose-900/30'
-                                }`}>
+                                <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold border ${doc.status === 'Approved' || doc.status === 'Auto-Approved'
+                                  ? 'bg-emerald-100/60 dark:bg-emerald-950/20 text-emerald-800 dark:text-emerald-400 border-emerald-200 dark:border-emerald-900/30'
+                                  : doc.status === 'Flagged'
+                                    ? 'bg-amber-100/60 dark:bg-amber-950/20 text-amber-800 dark:text-amber-400 border-amber-200 dark:border-amber-900/30'
+                                    : 'bg-rose-100/60 dark:bg-rose-950/20 text-rose-800 dark:text-rose-400 border-rose-200 dark:border-rose-900/30'
+                                  }`}>
                                   {doc.status === 'Approved' || doc.status === 'Auto-Approved' ? (
                                     <CheckCircle2 size={12} />
                                   ) : (
@@ -661,10 +664,10 @@ export default function App() {
                   <span className="text-xs text-zinc-500">
                     Showing <strong className="font-semibold">{Math.min(filteredDocs.length, (currentPage - 1) * pageSize + 1)}-{Math.min(filteredDocs.length, currentPage * pageSize)}</strong> of <strong className="font-semibold">{filteredDocs.length}</strong> matching documents
                   </span>
-                  
+
                   <div className="flex items-center gap-1.5">
                     {/* First Page */}
-                    <button 
+                    <button
                       onClick={() => setCurrentPage(1)}
                       disabled={currentPage === 1}
                       className="p-1.5 border border-zinc-200 dark:border-zinc-800 rounded bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-zinc-50 dark:hover:bg-zinc-700"
@@ -672,7 +675,7 @@ export default function App() {
                       <ChevronsLeft size={14} />
                     </button>
                     {/* Previous Page */}
-                    <button 
+                    <button
                       onClick={() => setCurrentPage(currentPage - 1)}
                       disabled={currentPage === 1}
                       className="p-1.5 border border-zinc-200 dark:border-zinc-800 rounded bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-zinc-50 dark:hover:bg-zinc-700"
@@ -682,7 +685,7 @@ export default function App() {
                     {/* Page Label */}
                     <span className="text-xs px-2 text-zinc-700 dark:text-zinc-300 font-medium">Page {currentPage} of {totalPages}</span>
                     {/* Next Page */}
-                    <button 
+                    <button
                       onClick={() => setCurrentPage(currentPage + 1)}
                       disabled={currentPage === totalPages}
                       className="p-1.5 border border-zinc-200 dark:border-zinc-800 rounded bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-zinc-50 dark:hover:bg-zinc-700"
@@ -690,7 +693,7 @@ export default function App() {
                       <ChevronRight size={14} />
                     </button>
                     {/* Last Page */}
-                    <button 
+                    <button
                       onClick={() => setCurrentPage(totalPages)}
                       disabled={currentPage === totalPages}
                       className="p-1.5 border border-zinc-200 dark:border-zinc-800 rounded bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-zinc-50 dark:hover:bg-zinc-700"
@@ -707,7 +710,7 @@ export default function App() {
             {/* Right Column: Reviewer Details & Decision Panel (Slide in/out) */}
             {selectedDoc && (
               <div className="w-full lg:w-1/3 bg-white dark:bg-[#0c0c0f] border border-zinc-200 dark:border-zinc-800 rounded-xl p-5 shadow-lg space-y-6 sticky top-24 transition-all duration-300 animate-in slide-in-from-right-5">
-                
+
                 {/* Panel Title & Close Button */}
                 <div className="flex items-center justify-between pb-3 border-b border-zinc-200 dark:border-zinc-800">
                   <div>
@@ -718,7 +721,7 @@ export default function App() {
                       {selectedDoc.fileName}
                     </h2>
                   </div>
-                  <button 
+                  <button
                     onClick={() => setSelectedDoc(null)}
                     className="p-1 border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 transition-colors"
                   >
@@ -767,7 +770,7 @@ export default function App() {
                   <h4 className="font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider text-[10px]">
                     Compliance Verification Checks
                   </h4>
-                  
+
                   {selectedDoc.alerts.length === 0 ? (
                     <div className="bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800/30 text-emerald-800 dark:text-emerald-300 rounded-lg p-3.5 flex gap-2 text-xs">
                       <CheckCircle2 size={16} className="text-emerald-500 shrink-0 mt-0.5" />
@@ -778,13 +781,12 @@ export default function App() {
                   ) : (
                     <div className="space-y-2">
                       {selectedDoc.alerts.map((alert, i) => (
-                        <div 
-                          key={i} 
-                          className={`border rounded-lg p-3 flex gap-2.5 text-xs ${
-                            alert.severity === 'Critical'
-                              ? 'bg-rose-50 dark:bg-rose-950/20 border-rose-200 dark:border-rose-800/30 text-rose-800 dark:text-rose-300'
-                              : 'bg-amber-50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800/30 text-amber-800 dark:text-amber-300'
-                          }`}
+                        <div
+                          key={i}
+                          className={`border rounded-lg p-3 flex gap-2.5 text-xs ${alert.severity === 'Critical'
+                            ? 'bg-rose-50 dark:bg-rose-950/20 border-rose-200 dark:border-rose-800/30 text-rose-800 dark:text-rose-300'
+                            : 'bg-amber-50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800/30 text-amber-800 dark:text-amber-300'
+                            }`}
                         >
                           <AlertTriangle size={16} className={`shrink-0 mt-0.5 ${alert.severity === 'Critical' ? 'text-rose-500' : 'text-amber-500'}`} />
                           <div>
@@ -834,8 +836,8 @@ export default function App() {
                     <label className="block text-xs font-semibold text-zinc-500 dark:text-zinc-400 mb-1.5">
                       Reviewer Verification Notes
                     </label>
-                    <textarea 
-                      placeholder="Input justification details, corrective actions taken, or release comments..." 
+                    <textarea
+                      placeholder="Input justification details, corrective actions taken, or release comments..."
                       value={reviewerNotes}
                       onChange={(e) => setReviewerNotes(e.target.value)}
                       className="w-full bg-[#ffffff] dark:bg-[#09090b] border border-zinc-200 dark:border-zinc-800 rounded-lg p-3.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 dark:text-zinc-100 placeholder-zinc-500 shadow-sm"
@@ -844,7 +846,7 @@ export default function App() {
                   </div>
 
                   <div className="grid grid-cols-3 gap-2">
-                    <button 
+                    <button
                       onClick={() => handleDecision('APPROVE')}
                       disabled={actionLoading}
                       className="bg-[#059669] hover:bg-[#047857] text-white rounded-lg py-2.5 text-xs font-semibold shadow-sm transition-colors flex items-center justify-center gap-1 disabled:opacity-50"
@@ -852,7 +854,7 @@ export default function App() {
                       <Check size={14} />
                       Approve
                     </button>
-                    <button 
+                    <button
                       onClick={() => handleDecision('FLAG')}
                       disabled={actionLoading}
                       className="bg-amber-500 hover:bg-amber-600 text-white rounded-lg py-2.5 text-xs font-semibold shadow-sm transition-colors flex items-center justify-center gap-1 disabled:opacity-50"
@@ -860,7 +862,7 @@ export default function App() {
                       <AlertTriangle size={14} />
                       Flag
                     </button>
-                    <button 
+                    <button
                       onClick={() => handleDecision('REJECT')}
                       disabled={actionLoading}
                       className="bg-[#e11d48] hover:bg-[#be123c] text-white rounded-lg py-2.5 text-xs font-semibold shadow-sm transition-colors flex items-center justify-center gap-1 disabled:opacity-50"
@@ -879,9 +881,9 @@ export default function App() {
 
         {/* Tab 2: Operational Analytics View */}
         {activeTab === 'analytics' && (
-          <AnalyticsDashboard 
-            analyticsData={analytics} 
-            isDarkMode={isDarkMode} 
+          <AnalyticsDashboard
+            analyticsData={analytics}
+            isDarkMode={isDarkMode}
           />
         )}
 
@@ -890,10 +892,10 @@ export default function App() {
       {/* Simulated Document Intake Modal Overlay */}
       {showUploadModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/60 backdrop-blur-sm p-4">
-          
+
           <div className="bg-white dark:bg-[#0c0c0f] rounded-xl border border-zinc-200 dark:border-zinc-800 shadow-2xl w-full max-w-md p-6 relative animate-in zoom-in-95">
-            
-            <button 
+
+            <button
               onClick={() => setShowUploadModal(false)}
               className="absolute top-4 right-4 p-1 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-400 hover:text-zinc-600 transition-colors"
             >
@@ -909,14 +911,14 @@ export default function App() {
             </p>
 
             <form onSubmit={handleSimulatedUpload} className="space-y-4">
-              
+
               {/* Select Preset Template */}
               <div>
                 <label className="block text-xs font-semibold text-zinc-500 mb-1.5">
                   Select Presettled Document Template
                 </label>
-                <select 
-                  value={selectedTemplateId} 
+                <select
+                  value={selectedTemplateId}
                   onChange={(e) => setSelectedTemplateId(e.target.value)}
                   className="w-full bg-[#ffffff] dark:bg-[#09090b] border border-zinc-200 dark:border-zinc-800 rounded-lg px-3 py-2 text-sm text-zinc-950 dark:text-zinc-100 focus:outline-none focus:ring-1 focus:ring-blue-500 shadow-sm"
                 >
@@ -933,8 +935,8 @@ export default function App() {
                 <label className="block text-xs font-semibold text-zinc-500 mb-1.5">
                   Authorized Uploader Identity
                 </label>
-                <input 
-                  type="text" 
+                <input
+                  type="text"
                   value={uploaderName}
                   onChange={(e) => setUploaderName(e.target.value)}
                   placeholder="e.g. Field Inspector Yuki Tanaka"
@@ -948,8 +950,8 @@ export default function App() {
                 <label className="block text-xs font-semibold text-zinc-500 mb-1.5">
                   Custom File Name (Optional)
                 </label>
-                <input 
-                  type="text" 
+                <input
+                  type="text"
                   value={customFileName}
                   onChange={(e) => setCustomFileName(e.target.value)}
                   placeholder="Leave empty to use template default name"
@@ -958,15 +960,15 @@ export default function App() {
               </div>
 
               <div className="flex gap-2.5 pt-2">
-                <button 
-                  type="button" 
+                <button
+                  type="button"
                   onClick={() => setShowUploadModal(false)}
                   className="w-1/2 bg-[#ffffff] dark:bg-[#262626] hover:bg-[#f8fafc] dark:hover:bg-zinc-800 text-[#334155] dark:text-zinc-200 border border-zinc-200 dark:border-zinc-700 rounded-lg py-2.5 text-xs font-semibold shadow-sm transition-colors"
                 >
                   Cancel
                 </button>
-                <button 
-                  type="submit" 
+                <button
+                  type="submit"
                   className="w-1/2 bg-[#059669] hover:bg-[#047857] text-white rounded-lg py-2.5 text-xs font-semibold shadow-sm transition-colors"
                 >
                   Ingest & Process
