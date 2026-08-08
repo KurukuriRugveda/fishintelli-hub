@@ -49,7 +49,7 @@ const ENV = process.env.NODE_ENV || 'development';
 
 
 // ============================================================
-// SECURITY / MIDDLEWARE
+// SECURITY
 // ============================================================
 
 app.use(
@@ -61,21 +61,13 @@ app.use(
 app.use(compression());
 
 app.use(
-  morgan(
-    ENV === 'production'
-      ? 'combined'
-      : 'dev'
-  )
+  morgan(ENV === 'production' ? 'combined' : 'dev')
 );
 
 
 // ============================================================
 // CORS
 // ============================================================
-
-// IMPORTANT:
-// Do NOT put Markdown links here.
-// Use plain URLs only.
 
 const allowedOrigins = [
   'https://fishintelli-hub.vercel.app',
@@ -88,17 +80,15 @@ const allowedOrigins = [
   'http://127.0.0.1:5174'
 ];
 
-// Add Render environment variable origins if provided
 if (process.env.CORS_ORIGINS) {
-  const extraOrigins = process.env.CORS_ORIGINS
+  const envOrigins = process.env.CORS_ORIGINS
     .split(',')
     .map(origin => origin.trim())
     .filter(Boolean);
 
-  allowedOrigins.push(...extraOrigins);
+  allowedOrigins.push(...envOrigins);
 }
 
-// Remove duplicates
 const uniqueOrigins = [...new Set(allowedOrigins)];
 
 console.log('[CORS] Allowed origins:');
@@ -109,7 +99,7 @@ app.use(
   cors({
     origin: function (origin, callback) {
 
-      // Allow Postman, curl, server-to-server etc.
+      // Allow Postman, curl, server-to-server requests
       if (!origin) {
         return callback(null, true);
       }
@@ -149,11 +139,10 @@ app.use(
 );
 
 
-// Explicit OPTIONS handling
-app.options('*', cors());
+// ============================================================
+// BODY PARSER
+// ============================================================
 
-
-// JSON body parser
 app.use(
   express.json({
     limit: '2mb'
@@ -162,7 +151,7 @@ app.use(
 
 
 // ============================================================
-// RATE LIMITING
+// RATE LIMITER
 // ============================================================
 
 const apiLimiter = rateLimit({
@@ -191,23 +180,7 @@ app.get('/', (req, res) => {
   res.status(200).json({
     status: 'ok',
 
-    message: 'AquaIntelligent Hub backend is running.',
-
-    environment: ENV,
-
-    timestamp: new Date().toISOString()
-  });
-
-});
-
-
-// Dedicated health endpoint
-app.get('/health', (req, res) => {
-
-  res.status(200).json({
-    status: 'healthy',
-
-    service: 'AquaIntelligent Hub API',
+    message: 'AquaIntelligent Hub API is running',
 
     environment: ENV,
 
@@ -221,10 +194,12 @@ app.get('/health', (req, res) => {
 // AUTH ROUTES
 // ============================================================
 
-// Frontend should use:
-// POST /api/auth/login
-
+// Main production route
 app.use('/api/auth', authRouter);
+
+// Compatibility route
+// This allows old frontend code using /auth/login to work too.
+app.use('/auth', authRouter);
 
 
 // ============================================================
@@ -232,10 +207,9 @@ app.use('/api/auth', authRouter);
 // ============================================================
 
 
-// ------------------------------------------------------------
-// GET /api/documents
-// ------------------------------------------------------------
-
+/**
+ * GET /api/documents
+ */
 app.get(
   '/api/documents',
   authenticateToken,
@@ -245,7 +219,7 @@ app.get(
 
       const documents = getAllDocuments();
 
-      return res.status(200).json(documents);
+      res.status(200).json(documents);
 
     } catch (error) {
 
@@ -257,15 +231,45 @@ app.get(
 );
 
 
-// ------------------------------------------------------------
-// POST /api/documents/upload
-// Mock upload
-// ------------------------------------------------------------
+/**
+ * Compatibility:
+ * GET /documents
+ *
+ * This prevents old frontend builds from getting 404.
+ */
+app.get(
+  '/documents',
+  authenticateToken,
+  (req, res, next) => {
 
+    try {
+
+      const documents = getAllDocuments();
+
+      res.status(200).json(documents);
+
+    } catch (error) {
+
+      next(error);
+
+    }
+
+  }
+);
+
+
+// ============================================================
+// MOCK DOCUMENT UPLOAD
+// ============================================================
+
+
+/**
+ * POST /api/documents/upload
+ */
 app.post(
   '/api/documents/upload',
   authenticateToken,
-  (req, res, next) => {
+  async (req, res, next) => {
 
     try {
 
@@ -275,6 +279,50 @@ app.post(
         customName
       } = req.body;
 
+      if (!templateId) {
+
+        return res.status(400).json({
+          error: 'templateId is required.'
+        });
+
+      }
+
+      const doc = processDocument({
+        templateId,
+        uploader:
+          uploader ||
+          req.user?.username ||
+          'Unknown User',
+        customName
+      });
+
+      insertDocument(doc);
+
+      return res.status(201).json(doc);
+
+    } catch (error) {
+
+      next(error);
+
+    }
+
+  }
+);
+
+
+// Compatibility route
+app.post(
+  '/documents/upload',
+  authenticateToken,
+  async (req, res, next) => {
+
+    try {
+
+      const {
+        templateId,
+        uploader,
+        customName
+      } = req.body;
 
       if (!templateId) {
 
@@ -284,35 +332,18 @@ app.post(
 
       }
 
+      const doc = processDocument({
+        templateId,
+        uploader:
+          uploader ||
+          req.user?.username ||
+          'Unknown User',
+        customName
+      });
 
-      // Simulated processing
-      setTimeout(() => {
+      insertDocument(doc);
 
-        try {
-
-          const document = processDocument({
-            templateId,
-            uploader:
-              uploader ||
-              req.user?.username ||
-              'Unknown User',
-
-            customName
-          });
-
-
-          insertDocument(document);
-
-
-          return res.status(201).json(document);
-
-        } catch (error) {
-
-          next(error);
-
-        }
-
-      }, 1200);
+      return res.status(201).json(doc);
 
     } catch (error) {
 
@@ -333,8 +364,6 @@ const uploadDir = path.join(
   'uploads'
 );
 
-
-// Create uploads folder
 if (!fs.existsSync(uploadDir)) {
 
   fs.mkdirSync(
@@ -355,13 +384,9 @@ const storage = multer.diskStorage({
     cb
   ) {
 
-    cb(
-      null,
-      uploadDir
-    );
+    cb(null, uploadDir);
 
   },
-
 
   filename: function (
     req,
@@ -376,13 +401,10 @@ const storage = multer.diskStorage({
         Math.random() * 1E9
       );
 
-
     cb(
       null,
       uniqueSuffix +
-      path.extname(
-        file.originalname
-      )
+      path.extname(file.originalname)
     );
 
   }
@@ -403,9 +425,13 @@ const upload = multer({
 
 
 // ============================================================
-// REAL DOCUMENT UPLOAD + GEMINI
+// REAL AI DOCUMENT UPLOAD
 // ============================================================
 
+
+/**
+ * POST /api/documents/real-upload
+ */
 app.post(
   '/api/documents/real-upload',
 
@@ -434,11 +460,8 @@ app.post(
       }
 
 
-      // Read uploaded file
       const fileBuffer =
-        fs.readFileSync(
-          file.path
-        );
+        fs.readFileSync(file.path);
 
 
       let aiResult;
@@ -456,20 +479,9 @@ app.post(
       } catch (aiError) {
 
         console.error(
-          '[AI] Gemini error:',
+          '[AI ERROR]',
           aiError
         );
-
-
-        // Delete temporary file
-        try {
-
-          fs.unlinkSync(
-            file.path
-          );
-
-        } catch (_) {}
-
 
         return res.status(500).json({
 
@@ -477,39 +489,26 @@ app.post(
             'AI extraction failed.',
 
           details:
-            ENV !== 'production'
-              ? aiError.message
-              : undefined
+            ENV === 'production'
+              ? 'Check GEMINI_API_KEY in Render environment variables.'
+              : aiError.message
 
         });
 
       }
 
 
-      // Delete uploaded file after processing
-      try {
+      const docId =
+        'doc-' +
+        uuidv4().substring(0, 8);
 
-        fs.unlinkSync(
-          file.path
-        );
-
-      } catch (_) {}
-
-
-      // ======================================================
-      // BUILD DOCUMENT
-      // ======================================================
 
       const confidence =
-        Number(
-          aiResult?.confidence ?? 0.9
-        );
+        Number(aiResult?.confidence ?? 0.9);
 
 
       const alerts =
-        Array.isArray(
-          aiResult?.alerts
-        )
+        Array.isArray(aiResult?.alerts)
           ? aiResult.alerts
           : [];
 
@@ -521,13 +520,7 @@ app.post(
           : 'Auto-Approved';
 
 
-      const docId =
-        'doc-' +
-        uuidv4()
-          .substring(0, 8);
-
-
-      const newDocument = {
+      const newDoc = {
 
         id: docId,
 
@@ -564,9 +557,7 @@ app.post(
 
         aiRecommendation:
           docStatus === 'Flagged'
-
             ? 'Requires human review due to low confidence or alerts.'
-
             : 'High confidence, auto-approved.',
 
         reviewerNotes:
@@ -575,15 +566,27 @@ app.post(
       };
 
 
-      insertDocument(
-        newDocument
-      );
+      insertDocument(newDoc);
+
+
+      // Remove temporary uploaded file
+      try {
+
+        fs.unlinkSync(file.path);
+
+      } catch (deleteError) {
+
+        console.warn(
+          '[UPLOAD] Could not delete temporary file:',
+          deleteError.message
+        );
+
+      }
 
 
       return res.status(201).json(
-        newDocument
+        newDoc
       );
-
 
     } catch (error) {
 
@@ -599,26 +602,27 @@ app.post(
 // RESET DOCUMENTS
 // ============================================================
 
+
+/**
+ * POST /api/documents/reset
+ */
 app.post(
   '/api/documents/reset',
-
   authenticateToken,
-
   (req, res, next) => {
 
     try {
 
-      const documents =
+      const docs =
         resetDocuments();
 
-
-      return res.status(200).json({
+      res.status(200).json({
 
         message:
           'Database reset to initial state.',
 
         count:
-          documents.length
+          docs.length
 
       });
 
@@ -636,8 +640,10 @@ app.post(
 // DOCUMENT ACTION
 // ============================================================
 
-// POST /api/documents/:id/action
 
+/**
+ * POST /api/documents/:id/action
+ */
 app.post(
   '/api/documents/:id/action',
 
@@ -651,7 +657,6 @@ app.post(
         id
       } = req.params;
 
-
       const {
         action,
         reviewerNotes
@@ -659,17 +664,13 @@ app.post(
 
 
       const userRole =
-        req.user?.role ||
-        'Reviewer';
+        req.user?.role;
 
 
       if (!action) {
 
         return res.status(400).json({
-
-          error:
-            'action is required.'
-
+          error: 'action is required.'
         });
 
       }
@@ -682,10 +683,7 @@ app.post(
       if (!existing) {
 
         return res.status(404).json({
-
-          error:
-            'Document not found.'
-
+          error: 'Document not found.'
         });
 
       }
@@ -730,7 +728,7 @@ app.post(
             newStatus,
 
           decisionBy:
-            `${userRole} (Reviewer)`,
+            `${userRole || 'User'} (Reviewer)`,
 
           decisionTime:
             new Date().toISOString(),
@@ -752,7 +750,6 @@ app.post(
 
       });
 
-
     } catch (error) {
 
       next(error);
@@ -767,8 +764,10 @@ app.post(
 // ANALYTICS
 // ============================================================
 
-// GET /api/analytics
 
+/**
+ * GET /api/analytics
+ */
 app.get(
   '/api/analytics',
 
@@ -783,8 +782,7 @@ app.get(
           DOCUMENT_TYPES
         );
 
-
-      return res.status(200).json(
+      res.status(200).json(
         analytics
       );
 
@@ -805,7 +803,7 @@ app.get(
 app.use(
   (req, res) => {
 
-    return res.status(404).json({
+    res.status(404).json({
 
       error:
         'Route not found.',
@@ -840,7 +838,6 @@ app.use(
     );
 
 
-    // CORS error
     if (
       err.message &&
       err.message.includes(
@@ -848,9 +845,12 @@ app.use(
       )
     ) {
 
-      return res.status(500).json({
+      return res.status(403).json({
 
         error:
+          'CORS policy blocked this request.',
+
+        details:
           err.message
 
       });
@@ -863,17 +863,14 @@ app.use(
       500;
 
 
-    return res.status(status).json({
+    res.status(status).json({
 
       error:
         err.message ||
         'Internal server error.',
 
       ...(ENV !== 'production' && {
-
-        stack:
-          err.stack
-
+        stack: err.stack
       })
 
     });
@@ -893,27 +890,11 @@ const server =
     () => {
 
       console.log(
-        '================================================'
+        `[SERVER] AquaIntelligent Hub API running in ${ENV} mode on port ${PORT}`
       );
 
       console.log(
-        'AquaIntelligent Hub Backend'
-      );
-
-      console.log(
-        `Environment: ${ENV}`
-      );
-
-      console.log(
-        `Port: ${PORT}`
-      );
-
-      console.log(
-        `Server running on port ${PORT}`
-      );
-
-      console.log(
-        '================================================'
+        `[SERVER] Listening on port ${PORT}`
       );
 
     }
@@ -924,12 +905,10 @@ const server =
 // GRACEFUL SHUTDOWN
 // ============================================================
 
-function gracefulShutdown(
-  signal
-) {
+function gracefulShutdown(signal) {
 
   console.log(
-    `[SERVER] ${signal} received.`
+    `[SERVER] ${signal} received — shutting down gracefully...`
   );
 
 
@@ -955,7 +934,7 @@ function gracefulShutdown(
     } catch (error) {
 
       console.error(
-        '[DB] Close error:',
+        '[DB] Error closing database:',
         error.message
       );
 
@@ -967,7 +946,6 @@ function gracefulShutdown(
   });
 
 
-  // Force exit
   setTimeout(() => {
 
     console.error(
@@ -979,16 +957,12 @@ function gracefulShutdown(
   }, 10000);
 
 }
-
-
 process.on(
   'SIGTERM',
-  () =>
-    gracefulShutdown('SIGTERM')
+  () => gracefulShutdown('SIGTERM')
 );
 
 process.on(
   'SIGINT',
-  () =>
-    gracefulShutdown('SIGINT')
+  () => gracefulShutdown('SIGINT')
 );
