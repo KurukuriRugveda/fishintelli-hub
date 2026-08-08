@@ -1,234 +1,129 @@
 'use strict';
 
-const path = require('path');
-const Database = require('better-sqlite3');
+const mongoose = require('mongoose');
+const { v4: uuidv4 } = require('uuid');
 const { MOCK_TEMPLATES, processDocument } = require('./mock_ai_engine');
 
-// ─── Open / Create Database ──────────────────────────────────────────────────
-const DB_PATH = process.env.DATABASE_PATH
-  ? path.resolve(process.env.DATABASE_PATH)
-  : path.resolve(__dirname, 'aqua_hub.db');
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/aqua_hub';
 
-const db = new Database(DB_PATH);
+// ─── Schemas ─────────────────────────────────────────────────────────────────
+const documentSchema = new mongoose.Schema({
+  id: { type: String, required: true, unique: true },
+  fileName: { type: String, required: true },
+  type: { type: String, required: true },
+  facility: { type: String, required: true },
+  uploader: { type: String, required: true },
+  uploadTime: { type: String, required: true },
+  content: { type: mongoose.Schema.Types.Mixed, required: true },
+  alerts: { type: mongoose.Schema.Types.Mixed, required: true, default: [] },
+  status: { type: String, required: true, default: 'Flagged' },
+  extractionConfidence: { type: Number, required: true, default: 0 },
+  aiRecommendation: { type: String },
+  decisionBy: { type: String },
+  decisionTime: { type: String },
+  reviewerNotes: { type: String }
+});
 
-// Enable WAL mode for better concurrent read/write performance
-db.pragma('journal_mode = WAL');
-db.pragma('foreign_keys = ON');
+const userSchema = new mongoose.Schema({
+  id: { type: String, required: true, unique: true },
+  username: { type: String, required: true, unique: true },
+  password_hash: { type: String, required: true },
+  role: { type: String, required: true },
+  facility_id: { type: String }
+});
 
-// ─── Schema ──────────────────────────────────────────────────────────────────
-db.exec(`
-  CREATE TABLE IF NOT EXISTS documents (
-    id               TEXT PRIMARY KEY,
-    file_name        TEXT    NOT NULL,
-    type             TEXT    NOT NULL,
-    facility         TEXT    NOT NULL,
-    uploader         TEXT    NOT NULL,
-    upload_time      TEXT    NOT NULL,
-    content          TEXT    NOT NULL,  -- JSON blob
-    alerts           TEXT    NOT NULL,  -- JSON blob (array)
-    status           TEXT    NOT NULL DEFAULT 'Flagged',
-    extraction_confidence REAL NOT NULL DEFAULT 0,
-    ai_recommendation     TEXT,
-    decision_by      TEXT,
-    decision_time    TEXT,
-    reviewer_notes   TEXT
-  );
+const auditLogSchema = new mongoose.Schema({
+  id: { type: String, required: true, unique: true },
+  userId: { type: String, required: true },
+  action: { type: String, required: true },
+  resource: { type: String, required: true },
+  details: { type: mongoose.Schema.Types.Mixed },
+  timestamp: { type: String, required: true }
+});
 
-  CREATE TABLE IF NOT EXISTS users (
-    id               TEXT PRIMARY KEY,
-    username         TEXT UNIQUE NOT NULL,
-    password_hash    TEXT NOT NULL,
-    role             TEXT NOT NULL,
-    facility_id      TEXT
-  );
+const Document = mongoose.model('Document', documentSchema);
+const User = mongoose.model('User', userSchema);
+const AuditLog = mongoose.model('AuditLog', auditLogSchema);
 
-  CREATE TABLE IF NOT EXISTS audit_logs (
-    id               TEXT PRIMARY KEY,
-    user_id          TEXT NOT NULL,
-    action           TEXT NOT NULL,
-    resource         TEXT NOT NULL,
-    details          TEXT,
-    timestamp        TEXT NOT NULL
-  );
-`);
+// ─── Connection & Seeding ────────────────────────────────────────────────────
+mongoose.connect(MONGODB_URI)
+  .then(async () => {
+    console.log(`[DB] Connected to MongoDB at ${MONGODB_URI}`);
+    await seedIfEmpty();
+  })
+  .catch(err => console.error('[DB] MongoDB connection error:', err));
 
-console.log(`[DB] SQLite database opened: ${DB_PATH}`);
-
-// ─── Prepared Statements ─────────────────────────────────────────────────────
-const stmts = {
-  insertDoc: db.prepare(`
-    INSERT INTO documents (
-      id, file_name, type, facility, uploader, upload_time,
-      content, alerts, status, extraction_confidence,
-      ai_recommendation, decision_by, decision_time, reviewer_notes
-    ) VALUES (
-      @id, @file_name, @type, @facility, @uploader, @upload_time,
-      @content, @alerts, @status, @extraction_confidence,
-      @ai_recommendation, @decision_by, @decision_time, @reviewer_notes
-    )
-  `),
-
-  countDocs: db.prepare('SELECT COUNT(*) as cnt FROM documents'),
-
-  allDocs: db.prepare(`
-    SELECT * FROM documents ORDER BY upload_time DESC
-  `),
-
-  docById: db.prepare('SELECT * FROM documents WHERE id = ?'),
-
-  updateAction: db.prepare(`
-    UPDATE documents
-    SET status         = @status,
-        decision_by    = @decision_by,
-        decision_time  = @decision_time,
-        reviewer_notes = @reviewer_notes
-    WHERE id = @id
-  `),
-
-  deleteAll: db.prepare('DELETE FROM documents'),
-
-  insertUser: db.prepare(`
-    INSERT INTO users (id, username, password_hash, role, facility_id)
-    VALUES (@id, @username, @password_hash, @role, @facility_id)
-  `),
-
-  getUserByUsername: db.prepare('SELECT * FROM users WHERE username = ?'),
-  getUserById: db.prepare('SELECT * FROM users WHERE id = ?'),
-
-  insertAuditLog: db.prepare(`
-    INSERT INTO audit_logs (id, user_id, action, resource, details, timestamp)
-    VALUES (@id, @user_id, @action, @resource, @details, @timestamp)
-  `),
-};
-
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-
-/** Convert a raw DB row into the plain-JS doc shape the API and frontend expect */
-function rowToDoc(row) {
-  return {
-    id:                   row.id,
-    fileName:             row.file_name,
-    type:                 row.type,
-    facility:             row.facility,
-    uploader:             row.uploader,
-    uploadTime:           row.upload_time,
-    content:              JSON.parse(row.content),
-    alerts:               JSON.parse(row.alerts),
-    status:               row.status,
-    extractionConfidence: row.extraction_confidence,
-    aiRecommendation:     row.ai_recommendation,
-    decisionBy:           row.decision_by,
-    decisionTime:         row.decision_time,
-    reviewerNotes:        row.reviewer_notes,
-  };
-}
-
-/** Convert a processed-doc object into a flat row ready for INSERT */
-function docToRow(doc) {
-  return {
-    id:                     doc.id,
-    file_name:              doc.fileName,
-    type:                   doc.type,
-    facility:               doc.facility,
-    uploader:               doc.uploader,
-    upload_time:            doc.uploadTime,
-    content:                JSON.stringify(doc.content),
-    alerts:                 JSON.stringify(doc.alerts),
-    status:                 doc.status,
-    extraction_confidence:  doc.extractionConfidence,
-    ai_recommendation:      doc.aiRecommendation,
-    decision_by:            doc.decisionBy ?? null,
-    decision_time:          doc.decisionTime ?? null,
-    reviewer_notes:         doc.reviewerNotes ?? null,
-  };
-}
-
-// ─── Seed ─────────────────────────────────────────────────────────────────────
-function seedIfEmpty() {
-  const { cnt } = stmts.countDocs.get();
-  if (cnt > 0) {
-    console.log(`[DB] Existing data found (${cnt} records). Skipping seed.`);
+async function seedIfEmpty() {
+  const count = await Document.countDocuments();
+  if (count > 0) {
+    console.log(`[DB] Existing data found (${count} records). Skipping seed.`);
     return;
   }
 
-  console.log('[DB] Empty database — seeding with mock records...');
-  const seedMany = db.transaction(() => {
-    MOCK_TEMPLATES.forEach((tpl) => {
-      const doc = processDocument({
-        templateId: tpl.id,
-        uploader:   tpl.uploader,
-        customName: tpl.fileName,
-      });
-
-      // Make odd-indexed templates pre-approved (historical)
-      if (tpl.id.endsWith('001')) {
-        doc.status       = 'Approved';
-        doc.decisionBy   = 'Cooperative Manager (Sarah Jenkins)';
-        doc.decisionTime = new Date(Date.now() - 3_600_000 * 4).toISOString();
-        doc.reviewerNotes = 'Verified. Operational limits normal, data matches baseline.';
-      }
-
-      stmts.insertDoc.run(docToRow(doc));
+  const seedDocs = MOCK_TEMPLATES.map(tpl => {
+    const doc = processDocument({
+      templateId: tpl.id,
+      uploader: tpl.uploader,
+      customName: tpl.fileName,
     });
+
+    if (tpl.id.endsWith('001')) {
+      doc.status = 'Approved';
+      doc.decisionBy = 'Cooperative Manager (Sarah Jenkins)';
+      doc.decisionTime = new Date(Date.now() - 3_600_000 * 4).toISOString();
+      doc.reviewerNotes = 'Verified. Operational limits normal, data matches baseline.';
+    }
+    return doc;
   });
 
-  seedMany();
-  console.log(`[DB] Seeded ${MOCK_TEMPLATES.length} records.`);
+  await Document.insertMany(seedDocs);
+  console.log(`[DB] Seeded ${seedDocs.length} records.`);
 }
-
-seedIfEmpty();
 
 // ─── Public API ──────────────────────────────────────────────────────────────
 
-function getAllDocuments() {
-  return stmts.allDocs.all().map(rowToDoc);
+async function getAllDocuments() {
+  return await Document.find().sort({ uploadTime: -1 }).lean();
 }
 
-function getDocumentById(id) {
-  const row = stmts.docById.get(id);
-  return row ? rowToDoc(row) : null;
+async function getDocumentById(id) {
+  return await Document.findOne({ id }).lean();
 }
 
-function insertDocument(doc) {
-  stmts.insertDoc.run(docToRow(doc));
+async function insertDocument(doc) {
+  return await Document.create(doc);
 }
 
-function updateDocumentAction({ id, status, decisionBy, decisionTime, reviewerNotes }) {
-  stmts.updateAction.run({
-    id,
-    status,
-    decision_by:    decisionBy,
-    decision_time:  decisionTime,
-    reviewer_notes: reviewerNotes,
-  });
-  return getDocumentById(id);
+async function updateDocumentAction({ id, status, decisionBy, decisionTime, reviewerNotes }) {
+  return await Document.findOneAndUpdate(
+    { id },
+    { status, decisionBy, decisionTime, reviewerNotes },
+    { new: true }
+  ).lean();
 }
 
-function resetDocuments() {
-  const reset = db.transaction(() => {
-    stmts.deleteAll.run();
-    seedIfEmpty();
-  });
-  reset();
-  return getAllDocuments();
+async function resetDocuments() {
+  await Document.deleteMany({});
+  await seedIfEmpty();
+  return await getAllDocuments();
 }
 
-function getAnalytics(DOCUMENT_TYPES) {
-  const docs = getAllDocuments();
+async function getAnalytics(DOCUMENT_TYPES) {
+  const docs = await getAllDocuments();
 
-  const totalIngested   = docs.length;
-  const approvedCount   = docs.filter(d => d.status === 'Approved' || d.status === 'Auto-Approved').length;
-  const flaggedCount    = docs.filter(d => d.status === 'Flagged').length;
-  const rejectedCount   = docs.filter(d => d.status === 'Rejected').length;
+  const totalIngested = docs.length;
+  const approvedCount = docs.filter(d => d.status === 'Approved' || d.status === 'Auto-Approved').length;
+  const flaggedCount = docs.filter(d => d.status === 'Flagged').length;
+  const rejectedCount = docs.filter(d => d.status === 'Rejected').length;
   const totalConfidence = docs.reduce((s, d) => s + d.extractionConfidence, 0);
-  const avgConfidence   = totalIngested > 0
+  const avgConfidence = totalIngested > 0
     ? parseFloat((totalConfidence / totalIngested).toFixed(1))
     : 0;
-  const flaggedRate     = totalIngested > 0
+  const flaggedRate = totalIngested > 0
     ? parseFloat(((flaggedCount / totalIngested) * 100).toFixed(1))
     : 0;
 
-  const landingDocs      = docs.filter(d => d.type === DOCUMENT_TYPES.HARVEST_LANDING);
+  const landingDocs = docs.filter(d => d.type === DOCUMENT_TYPES.HARVEST_LANDING);
   const totalHarvestedKg = landingDocs.reduce((s, d) => s + (d.content.weightKg || 0), 0);
 
   const typeCounts = {};
@@ -237,70 +132,76 @@ function getAnalytics(DOCUMENT_TYPES) {
   });
 
   const timelineData = docs.slice(0, 10).map(d => ({
-    time:       d.uploadTime,
-    type:       d.type,
-    status:     d.status,
+    time: d.uploadTime,
+    type: d.type,
+    status: d.status,
     confidence: d.extractionConfidence,
   }));
 
-  const wqTrend = docs
+  const waterQualityData = docs
     .filter(d => d.type === DOCUMENT_TYPES.WATER_QUALITY)
     .map(d => ({
       time: d.uploadTime,
-      pH:   d.content.pH,
-      do:   d.content.dissolvedOxygenMgL,
+      pH: d.content.pH,
+      do: d.content.dissolvedOxygenMgL,
       temp: d.content.waterTempC,
     }));
 
-  const coldTrend = docs
+  const coldStorageData = docs
     .filter(d => d.type === DOCUMENT_TYPES.COLD_STORAGE)
     .map(d => ({
-      time:    d.uploadTime,
+      time: d.uploadTime,
       avgTemp: d.content.averageTempC,
       maxTemp: d.content.maxTempC,
     }));
 
   return {
-    kpis: { totalIngested, approvedCount, flaggedCount, rejectedCount, avgConfidence, flaggedRate, totalHarvestedKg },
+    totalIngested,
+    approvedCount,
+    flaggedCount,
+    rejectedCount,
+    avgConfidence,
+    flaggedRate,
+    totalHarvestedKg,
     typeCounts,
     timelineData,
-    wqTrend,
-    coldTrend,
+    waterQualityData,
+    coldStorageData,
   };
 }
 
-function createUser({ id, username, passwordHash, role, facilityId }) {
-  stmts.insertUser.run({
+async function createUser({ id, username, passwordHash, role, facilityId }) {
+  return await User.create({
     id,
     username,
     password_hash: passwordHash,
     role,
-    facility_id: facilityId || null
+    facility_id: facilityId
   });
 }
 
-function getUserByUsername(username) {
-  return stmts.getUserByUsername.get(username);
+async function getUserByUsername(username) {
+  return await User.findOne({ username }).lean();
 }
 
-function getUserById(id) {
-  return stmts.getUserById.get(id);
+async function getUserById(id) {
+  return await User.findOne({ id }).lean();
 }
 
-function logAudit({ id, userId, action, resource, details }) {
-  stmts.insertAuditLog.run({
+async function logAudit({ id, userId, action, resource, details }) {
+  return await AuditLog.create({
     id,
-    user_id: userId,
+    userId,
     action,
     resource,
-    details: details ? JSON.stringify(details) : null,
+    details,
     timestamp: new Date().toISOString()
   });
 }
 
-// Expose the raw db handle so index.js can hook graceful shutdown
+// Expose mongoose connection for graceful shutdown
 module.exports = {
-  db,
+  db: mongoose.connection,
   getAllDocuments,
   getDocumentById,
   insertDocument,

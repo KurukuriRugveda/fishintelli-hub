@@ -46,7 +46,7 @@ router.post('/login', async (req, res, next) => {
       return res.status(400).json({ error: 'Username and password are required.' });
     }
 
-    const user = getUserByUsername(username);
+    const user = await getUserByUsername(username);
     if (!user) {
       return res.status(401).json({ error: 'Invalid credentials.' });
     }
@@ -62,7 +62,7 @@ router.post('/login', async (req, res, next) => {
       { expiresIn: JWT_EXPIRES_IN }
     );
 
-    logAudit({
+    await logAudit({
       id: uuidv4(),
       userId: user.id,
       action: 'LOGIN',
@@ -85,9 +85,9 @@ async function seedDefaultUsers() {
   ];
 
   for (const u of defaultUsers) {
-    if (!getUserByUsername(u.username)) {
+    if (!(await getUserByUsername(u.username))) {
       const hash = await bcrypt.hash('password123', 10);
-      createUser({
+      await createUser({
         id: uuidv4(),
         username: u.username,
         passwordHash: hash,

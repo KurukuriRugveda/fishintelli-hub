@@ -213,11 +213,11 @@ app.use('/auth', authRouter);
 app.get(
   '/api/documents',
   authenticateToken,
-  (req, res, next) => {
+  async (req, res, next) => {
 
     try {
 
-      const documents = getAllDocuments();
+      const documents = await getAllDocuments();
 
       res.status(200).json(documents);
 
@@ -240,11 +240,11 @@ app.get(
 app.get(
   '/documents',
   authenticateToken,
-  (req, res, next) => {
+  async (req, res, next) => {
 
     try {
 
-      const documents = getAllDocuments();
+      const documents = await getAllDocuments();
 
       res.status(200).json(documents);
 
@@ -296,7 +296,7 @@ app.post(
         customName
       });
 
-      insertDocument(doc);
+      await insertDocument();
 
       return res.status(201).json(doc);
 
@@ -341,7 +341,7 @@ app.post(
         customName
       });
 
-      insertDocument(doc);
+      await insertDocument();
 
       return res.status(201).json(doc);
 
@@ -566,7 +566,7 @@ app.post(
       };
 
 
-      insertDocument(newDoc);
+      await insertDocument();
 
 
       // Remove temporary uploaded file
@@ -609,12 +609,12 @@ app.post(
 app.post(
   '/api/documents/reset',
   authenticateToken,
-  (req, res, next) => {
+  async (req, res, next) => {
 
     try {
 
       const docs =
-        resetDocuments();
+        await resetDocuments();
 
       res.status(200).json({
 
@@ -649,7 +649,7 @@ app.post(
 
   authenticateToken,
 
-  (req, res, next) => {
+  async (req, res, next) => {
 
     try {
 
@@ -773,7 +773,7 @@ app.get(
 
   authenticateToken,
 
-  (req, res, next) => {
+  async (req, res, next) => {
 
     try {
 
