@@ -8,8 +8,7 @@
   },
   "scripts": {
     "start": "node index.js",
-    "start:prod": "NODE_ENV=production node index.js",
-    
+    "start:prod": "NODE_ENV=production node index.js"
   },
   "dependencies": {
     "@google/genai": "^2.16.0",
