@@ -154,7 +154,7 @@ const upload = multer({
  * POST /api/documents/real-upload
  * Handles actual file uploads, performs AI extraction, and saves to DB.
  */
-app.post('/documents/real-upload', authenticateToken, upload.single('file'), async (req, res, next) => {
+app.post('/api/documents/real-upload', authenticateToken, upload.single('file'), async (req, res, next) => {
   try {
     const file = req.file;
     const { docType, facility } = req.body;
@@ -204,7 +204,7 @@ app.post('/documents/real-upload', authenticateToken, upload.single('file'), asy
  * POST /api/documents/reset
  * Wipes the database and re-seeds with the initial mock data set.
  */
-app.post('/documents/reset', (_req, res, next) => {
+app.post('/api/documents/reset', (_req, res, next) => {
   try {
     const docs = resetDocuments();
     res.json({ message: 'Database reset to initial state.', count: docs.length });
@@ -218,7 +218,7 @@ app.post('/documents/reset', (_req, res, next) => {
  * Records a reviewer decision (APPROVE | REJECT | FLAG).
  * Body: { action, reviewerNotes? }
  */
-app.post('/documents/:id/action', authenticateToken, (req, res, next) => {
+app.post('/api/documents/:id/action', authenticateToken, (req, res, next) => {
   try {
     const { id } = req.params;
     const { action, reviewerNotes } = req.body;
@@ -257,7 +257,7 @@ app.post('/documents/:id/action', authenticateToken, (req, res, next) => {
  * GET /api/analytics
  * Computes aggregated KPIs and chart-ready trend data from the live DB.
  */
-app.get('/analytics', authenticateToken, (_req, res, next) => {
+app.get('/api/analytics', authenticateToken, (_req, res, next) => {
   try {
     res.json(getAnalytics(DOCUMENT_TYPES));
   } catch (err) {
