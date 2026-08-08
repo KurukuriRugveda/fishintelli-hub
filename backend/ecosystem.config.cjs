@@ -11,7 +11,7 @@ module.exports = {
       env: {
         NODE_ENV: 'production',
         PORT: 10000,
-        DATABASE_PATH: './aqua_hub.db',
+        MONGODB_URI: 'mongodb://localhost:27017/aqua_hub',
         CORS_ORIGINS: 'https://fisheries-intelligent-hub.vercel.app',
       },
     },
