@@ -4,9 +4,10 @@ import {
   FileText, CheckCircle2, AlertTriangle, TrendingUp, Anchor, User, 
   Thermometer, Activity, DollarSign, Search, ArrowUpRight, Check, X, 
   ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, RefreshCw, 
-  Sun, Moon, UploadCloud, BarChart3, HelpCircle, HardDrive, ShieldCheck
+  Sun, Moon, UploadCloud, BarChart3, HelpCircle, HardDrive, ShieldCheck, LogOut
 } from 'lucide-react';
 import AnalyticsDashboard from './components/AnalyticsDashboard';
+import Login from './components/Login';
 
 
 const ROLES = {
@@ -62,10 +63,14 @@ const RAW_API_URL = import.meta.env.VITE_API_BASE_URL || 'https://fisheries-inte
 const API_BASE_URL = RAW_API_URL.replace(/\/+$/, '');
 
 export default function App() {
+  // Auth state
+  const [token, setToken] = useState(localStorage.getItem('token') || null);
+  const [authUser, setAuthUser] = useState(JSON.parse(localStorage.getItem('user')) || null);
+
   const [documents, setDocuments] = useState([]);
   const [analytics, setAnalytics] = useState(null);
   const [selectedDoc, setSelectedDoc] = useState(null);
-  const [activeRole, setActiveRole] = useState('Cooperative Manager');
+  const [activeRole, setActiveRole] = useState(authUser?.role || 'Cooperative Manager');
   const [activeTab, setActiveTab] = useState('intake');
   const [isDarkMode, setIsDarkMode] = useState(true);
 
@@ -93,10 +98,37 @@ export default function App() {
   const [isLoadingData, setIsLoadingData] = useState(true);
   const [apiError, setApiError] = useState(null);
 
+  // Setup Axios Interceptor for Auth
+  useEffect(() => {
+    const interceptor = axios.interceptors.request.use(config => {
+      if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+      }
+      return config;
+    });
+
+    const resInterceptor = axios.interceptors.response.use(
+      res => res,
+      err => {
+        if (err.response && err.response.status === 401) {
+          handleLogout();
+        }
+        return Promise.reject(err);
+      }
+    );
+
+    return () => {
+      axios.interceptors.request.eject(interceptor);
+      axios.interceptors.response.eject(resInterceptor);
+    };
+  }, [token]);
+
   // Initial load with auto retry
   useEffect(() => {
-    fetchData();
-  }, []);
+    if (token) {
+      fetchData();
+    }
+  }, [token]);
 
   // Update theme class on document HTML
   useEffect(() => {
@@ -107,6 +139,21 @@ export default function App() {
       root.classList.remove('dark');
     }
   }, [isDarkMode]);
+
+  const handleLoginSuccess = (newToken, user) => {
+    localStorage.setItem('token', newToken);
+    localStorage.setItem('user', JSON.stringify(user));
+    setToken(newToken);
+    setAuthUser(user);
+    setActiveRole(user.role);
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    setToken(null);
+    setAuthUser(null);
+  };
 
   const fetchData = async (isRetry = false) => {
     setIsLoadingData(true);
@@ -231,6 +278,10 @@ export default function App() {
     totalHarvestedKg: 0
   };
 
+  if (!token) {
+    return <Login apiBaseUrl={API_BASE_URL} onLogin={handleLoginSuccess} />;
+  }
+
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-[#09090b] text-zinc-950 dark:text-zinc-50 flex flex-col font-sans transition-colors duration-300">
       
@@ -253,25 +304,32 @@ export default function App() {
           <div className="flex flex-wrap items-center gap-3">
             
             {/* Active User Role selector */}
-            <div className="flex items-center gap-2">
-              <label className="text-xs font-semibold uppercase tracking-wider text-zinc-400 flex items-center gap-1">
-                <User size={12} />
-                Role:
-              </label>
-              <select 
-                value={activeRole} 
-                onChange={(e) => {
-                  setActiveRole(e.target.value);
-                  setCurrentPage(1); // Reset page on role switch
-                }}
-                className="bg-zinc-100 dark:bg-zinc-800 text-sm font-medium border border-zinc-200 dark:border-zinc-700 rounded-md px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            <div className="flex items-center gap-3 bg-zinc-100 dark:bg-zinc-900 px-3 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-800">
+              <User size={14} className="text-zinc-500" />
+              <div className="flex flex-col">
+                <span className="text-[10px] uppercase font-bold text-zinc-500 dark:text-zinc-400 tracking-wider leading-tight">
+                  {authUser?.username}
+                </span>
+                <select 
+                  value={activeRole} 
+                  onChange={(e) => {
+                    setActiveRole(e.target.value);
+                    setCurrentPage(1); // Reset page on role switch
+                  }}
+                  className="bg-transparent text-sm font-medium focus:outline-none appearance-none cursor-pointer pr-4 leading-tight"
+                >
+                  {Object.keys(ROLES).map((key) => (
+                    <option key={key} value={ROLES[key].name}>{ROLES[key].name}</option>
+                  ))}
+                </select>
+              </div>
+              <button 
+                onClick={handleLogout}
+                className="ml-2 p-1.5 hover:bg-zinc-200 dark:hover:bg-zinc-800 rounded-md transition-colors text-zinc-500 hover:text-red-500"
+                title="Logout"
               >
-                {Object.keys(ROLES).map((key) => (
-                  <option key={key} value={ROLES[key].name}>
-                    {ROLES[key].name}
-                  </option>
-                ))}
-              </select>
+                <LogOut className="w-4 h-4" />
+              </button>
             </div>
 
             {/* Dark Mode toggle */}
